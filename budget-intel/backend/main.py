@@ -3,7 +3,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 from datetime import date
+import joblib
+import json
+import numpy as np
+import os
 from data import USERS, SCHEMES, PROJECTS, COMPLAINTS, ALERTS
+
+# Load ML models
+try:
+    _iso = joblib.load('models/anomaly_model.pkl')
+    _scaler = joblib.load('models/anomaly_scaler.pkl')
+    ML_MODELS_LOADED = True
+except Exception as e:
+    print(f"⚠️ Warning: ML models not loaded: {e}")
+    ML_MODELS_LOADED = False
 
 app = FastAPI(title="BudgetFlow API")
 
@@ -31,6 +44,14 @@ class ComplaintBody(BaseModel):
     description: str
     user_email: str
     user_name: str
+
+
+class AnomalyPredictionBody(BaseModel):
+    allocated: float
+    spent: float
+    completion_pct: float
+    month: int
+    district_tier: int = 2
 
 
 def _strip_password(u: dict) -> dict:
@@ -163,3 +184,72 @@ def create_complaint(body: ComplaintBody):
     }
     complaints_db.append(row)
     return row
+
+
+# ── ML Model Endpoints ────────────────────────────────────────────────
+
+def predict_anomaly(allocated: float, spent: float,
+                    completion_pct: float, month: int,
+                    district_tier: int = 2) -> dict:
+    """ML-based anomaly detection using Isolation Forest"""
+    if not ML_MODELS_LOADED:
+        return {"error": "ML models not loaded"}
+    
+    diff_amount = abs(allocated - spent)
+    diff_percent = round(diff_amount / allocated * 100, 2) if allocated > 0 else 0
+    spending_ratio = round(spent / allocated, 4) if allocated > 0 else 0
+    is_overspend = 1 if spent > allocated else 0
+    quarter = (month - 1) // 3 + 1
+
+    features = np.array([[
+        allocated, spent, diff_amount, diff_percent,
+        spending_ratio, is_overspend, completion_pct,
+        district_tier, month, quarter
+    ]])
+
+    try:
+        raw = _iso.decision_function(features)[0]
+        score = float(1 - _scaler.transform([[raw]])[0][0])
+        score = max(0.0, min(1.0, score))
+
+        if score < 0.40:
+            risk = 'green'
+        elif score < 0.65:
+            risk = 'yellow'
+        else:
+            risk = 'red'
+
+        return {
+            'anomaly_score': round(score, 3),
+            'risk_level': risk,
+            'diff_percent': diff_percent,
+            'direction': 'Overspend' if spent > allocated else 'Underspend',
+            'auto_report': risk == 'red'
+        }
+    except Exception as e:
+        return {"error": f"Prediction failed: {str(e)}"}
+
+
+@app.post("/api/predict-anomaly")
+def predict_anomaly_endpoint(body: AnomalyPredictionBody):
+    """Predict anomaly score for a budget project"""
+    return predict_anomaly(
+        allocated=body.allocated,
+        spent=body.spent,
+        completion_pct=body.completion_pct,
+        month=body.month,
+        district_tier=body.district_tier
+    )
+
+
+@app.get("/api/recommendations")
+def get_recommendations():
+    """Get ML-generated reallocation suggestions"""
+    try:
+        if os.path.exists('models/suggestions.json'):
+            with open('models/suggestions.json', 'r') as f:
+                return json.load(f)
+        else:
+            return {"error": "Suggestions file not found", "suggestions": []}
+    except Exception as e:
+        return {"error": f"Failed to load recommendations: {str(e)}", "suggestions": []}
