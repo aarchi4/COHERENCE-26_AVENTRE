@@ -34,6 +34,14 @@ export async function fetchStatesFromBackend(): Promise<State[]> {
 
   const stateMap = new Map<string, State>()
 
+  const districtCoords: Record<string, { lat: number; lng: number }> = {
+    "maharashtra-palghar": { lat: 19.6967, lng: 72.7654 },
+    "maharashtra-pune": { lat: 18.5204, lng: 73.8567 },
+    "maharashtra-nashik": { lat: 19.9975, lng: 73.7898 },
+    "gujarat-surat": { lat: 21.1702, lng: 72.8311 },
+    "gujarat-vadodara": { lat: 22.3072, lng: 73.1812 },
+  }
+
   for (const p of data) {
     const stateId = slugify(p.state)
     let state = stateMap.get(stateId)
@@ -73,6 +81,9 @@ export async function fetchStatesFromBackend(): Promise<State[]> {
     const projStatus: UiProject["status"] =
       p.color === "red" ? "flagged" : p.completion_pct >= 95 ? "completed" : "in-progress"
 
+    const coordKey = `${slugify(p.state)}-${slugify(p.district)}`
+    const coords = districtCoords[coordKey]
+
     const uiProject: UiProject = {
       id: p.project_id,
       name: p.name,
@@ -82,6 +93,8 @@ export async function fetchStatesFromBackend(): Promise<State[]> {
       status: projStatus,
       progress: p.completion_pct,
       description: `${p.scheme} • ${p.contractor}`,
+      lat: coords?.lat,
+      lng: coords?.lng,
     }
 
     district.projects.push(uiProject)

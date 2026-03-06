@@ -26,9 +26,11 @@ export interface Project {
   status: 'planning' | 'in-progress' | 'completed' | 'flagged'
   progress: number
   description: string
+  lat?: number
+  lng?: number
 }
 
-export type UserRole = 'central' | 'state' | 'district' | 'user'
+export type UserRole = 'central' | 'state' | 'district' | 'user' | 'map'
 
 export interface Complaint {
   id: string
