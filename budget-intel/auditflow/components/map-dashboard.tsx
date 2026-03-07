@@ -2,7 +2,7 @@
 
 import { useMemo, useEffect, useState } from "react"
 import type { State } from "@/lib/types"
-import { fetchStatesFromBackend } from "@/lib/backend"
+import { fetchStatesFromBackend, API_BASE } from "@/lib/backend"
 import { MapView } from "./map-view"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -32,7 +32,7 @@ export function MapDashboard({ states: _initialStates }: MapDashboardProps) {
       .catch((err) => {
         if (mounted) {
           setApiStates([])
-          setError("Could not load projects. Make sure the backend is running on http://localhost:8000")
+          setError(`Could not load projects. Make sure the backend is running on ${API_BASE}`)
         }
       })
       .finally(() => {

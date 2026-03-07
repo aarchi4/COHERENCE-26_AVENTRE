@@ -3,13 +3,14 @@
 import { useState, useCallback, useEffect } from "react"
 import { State, District, UserRole } from "@/lib/types"
 import { initialStates } from "@/lib/data"
-import { fetchStatesFromBackend, fileComplaintToBackend } from "@/lib/backend"
+import { fetchStatesFromBackend, fileComplaintToBackend, API_DISPLAY } from "@/lib/backend"
 import { CentralDashboard } from "@/components/central-dashboard"
 import { StateDashboard } from "@/components/state-dashboard"
 import { DistrictDashboard } from "@/components/district-dashboard"
 import { UserDashboard } from "@/components/user-dashboard"
 import { MapDashboard } from "@/components/map-dashboard"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
 import { Landmark, Building2, MapPin, Users, Globe2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
@@ -19,31 +20,61 @@ export default function FinanceApp() {
   const [selectedState, setSelectedState] = useState<State | null>(null)
   const [selectedDistrict, setSelectedDistrict] = useState<District | null>(null)
   const [currentRole, setCurrentRole] = useState<UserRole>("user")
-  const [loading, setLoading] = useState<boolean>(false)
+  const [loading, setLoading] = useState<boolean>(true)
   const { toast } = useToast()
+
+  const loadFromBackend = useCallback(async () => {
+    setLoading(true)
+    try {
+      const backendStates = await fetchStatesFromBackend()
+      if (backendStates.length) {
+        setStates(backendStates)
+        toast({
+          title: "Connected to BudgetFlow API",
+          description: `Data loaded from ${API_DISPLAY}`,
+        })
+      }
+    } catch (error) {
+      console.error("Failed to load backend data.", error)
+      toast({
+        title: "Backend not connected",
+        description: `Start the backend on http://localhost:8000 and try again.`,
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [toast])
 
   useEffect(() => {
     let mounted = true
-    const load = async () => {
+    const run = async () => {
       setLoading(true)
       try {
         const backendStates = await fetchStatesFromBackend()
         if (mounted && backendStates.length) {
           setStates(backendStates)
+          toast({
+            title: "Connected to BudgetFlow API",
+description: `Data loaded from ${API_DISPLAY}`,
+        })
         }
       } catch (error) {
         console.error("Failed to load backend data, falling back to static sample data.", error)
-      } finally {
         if (mounted) {
-          setLoading(false)
+          toast({
+            title: "Using sample data",
+            description: "Backend not connected. Start backend on http://localhost:8000 and click Refresh.",
+            variant: "destructive",
+          })
         }
+      } finally {
+        if (mounted) setLoading(false)
       }
     }
-    load()
-    return () => {
-      mounted = false
-    }
-  }, [])
+    run()
+    return () => { mounted = false }
+  }, [toast])
 
   const handleStateClick = useCallback((state: State) => {
     setSelectedState(state)
@@ -287,9 +318,16 @@ export default function FinanceApp() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
-        {loading && (
+        {loading ? (
           <div className="mb-4 text-xs text-muted-foreground">
-            Connecting to BudgetFlow API at http://localhost:8000...
+            Connecting to BudgetFlow API...
+          </div>
+        ) : (
+          <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
+            <span>API: {API_DISPLAY}</span>
+            <Button type="button" variant="ghost" size="sm" onClick={loadFromBackend} className="h-7 text-xs">
+              Refresh from API
+            </Button>
           </div>
         )}
         {currentRole === "user" && (

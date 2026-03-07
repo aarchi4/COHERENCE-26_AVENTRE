@@ -15,7 +15,7 @@ try:
     _scaler = joblib.load('models/anomaly_scaler.pkl')
     ML_MODELS_LOADED = True
 except Exception as e:
-    print(f"⚠️ Warning: ML models not loaded: {e}")
+    print("Warning: ML models not loaded:", str(e))
     ML_MODELS_LOADED = False
 
 app = FastAPI(title="BudgetFlow API")
@@ -78,6 +78,11 @@ def _filter_projects_by_scope(role: str, state: str = "", district: str = ""):
     if role == "user":
         return list(PROJECTS)
     return list(PROJECTS)
+
+
+@app.get("/api/health")
+def health():
+    return {"status": "ok"}
 
 
 @app.post("/api/login")

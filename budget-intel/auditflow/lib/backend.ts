@@ -1,6 +1,24 @@
 import type { State, District, Project as UiProject } from "./types"
 
-const API_BASE = "http://localhost:8000"
+/**
+ * BudgetFlow backend URL.
+ * In dev, use proxy (same origin) to avoid CORS: set NEXT_PUBLIC_USE_PROXY=true in .env.local
+ * Or set NEXT_PUBLIC_API_URL to override (e.g. http://localhost:8000).
+ */
+export const API_BASE =
+  typeof process !== "undefined" && process.env?.NEXT_PUBLIC_USE_PROXY === "true"
+    ? (typeof window !== "undefined" ? "" : "http://localhost:8000") // browser: same-origin; SSR: direct
+    : (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) || "http://localhost:8000"
+
+/** Base path for API calls: use proxy path when using proxy so Next rewrites to backend */
+const API_PATH =
+  typeof process !== "undefined" && process.env?.NEXT_PUBLIC_USE_PROXY === "true"
+    ? "/api-proxy"
+    : API_BASE
+
+/** Label for UI (avoid showing empty string when using proxy) */
+export const API_DISPLAY =
+  API_PATH === "/api-proxy" ? "proxied to http://localhost:8000" : API_BASE
 
 type BackendProject = {
   project_id: string
@@ -26,7 +44,8 @@ function slugify(value: string): string {
 }
 
 export async function fetchStatesFromBackend(): Promise<State[]> {
-  const res = await fetch(`${API_BASE}/api/projects`)
+  const url = API_PATH === "/api-proxy" ? `${API_PATH}/projects` : `${API_BASE}/api/projects`
+  const res = await fetch(url)
   if (!res.ok) {
     throw new Error("Failed to fetch projects from backend")
   }
@@ -184,7 +203,8 @@ export async function fileComplaintToBackend({
     user_name: "Citizen User",
   }
 
-  const res = await fetch(`${API_BASE}/api/complaints`, {
+  const url = API_PATH === "/api-proxy" ? `${API_PATH}/complaints` : `${API_BASE}/api/complaints`
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
