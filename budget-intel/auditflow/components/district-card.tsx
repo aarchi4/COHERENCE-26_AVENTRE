@@ -6,17 +6,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { MapPin, AlertTriangle, RefreshCcw, Bell } from "lucide-react"
+import { MapPin, AlertTriangle, RefreshCcw, Bell, FlagOff } from "lucide-react"
 
 interface DistrictCardProps {
   district: District
   onClick: () => void
   onAlert: () => void
+  onUnflag: () => void
   onReallocate: () => void
 }
 
-export function DistrictCard({ district, onClick, onAlert, onReallocate }: DistrictCardProps) {
-  const usedPercentage = (district.usedFunds / district.allocatedFunds) * 100
+export function DistrictCard({ district, onClick, onAlert, onUnflag, onReallocate }: DistrictCardProps) {
+  const usedPercentageRaw = (district.usedFunds / district.allocatedFunds) * 100
+  const usedPercentage = Math.min(100, Math.max(0, usedPercentageRaw))
 
   return (
     <Card 
@@ -66,29 +68,44 @@ export function DistrictCard({ district, onClick, onAlert, onReallocate }: Distr
         <div className="space-y-1">
           <div className="flex justify-between text-xs">
             <span className="text-muted-foreground">Utilization</span>
-            <span className="text-foreground">{usedPercentage.toFixed(1)}%</span>
+            <span className="text-foreground">{usedPercentage.toFixed(1)}%{usedPercentageRaw > 100 ? " (overspend)" : ""}</span>
           </div>
           <Progress 
             value={usedPercentage} 
             className={`h-2 ${district.flagged ? '[&>div]:bg-destructive' : ''}`} 
           />
         </div>
-        <div className="flex gap-2 pt-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="flex-1 gap-1.5 text-xs"
-            onClick={(e) => {
-              e.stopPropagation()
-              onAlert()
-            }}
-          >
-            <Bell className="h-3.5 w-3.5" />
-            Alert
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
+        <div className="flex flex-wrap gap-2 pt-2">
+          {district.flagged ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs border-success/50 text-success hover:bg-success/10"
+              onClick={(e) => {
+                e.stopPropagation()
+                onUnflag()
+              }}
+            >
+              <FlagOff className="h-3.5 w-3.5" />
+              Unflag
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 gap-1.5 text-xs"
+              onClick={(e) => {
+                e.stopPropagation()
+                onAlert()
+              }}
+            >
+              <Bell className="h-3.5 w-3.5" />
+              Alert
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
             className="flex-1 gap-1.5 text-xs"
             onClick={(e) => {
               e.stopPropagation()

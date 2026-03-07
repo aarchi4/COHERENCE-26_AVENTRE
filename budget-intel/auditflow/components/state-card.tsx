@@ -13,7 +13,8 @@ interface StateCardProps {
 }
 
 export function StateCard({ state, onClick }: StateCardProps) {
-  const usedPercentage = (state.usedFunds / state.allocatedFunds) * 100
+  const usedPercentageRaw = (state.usedFunds / state.allocatedFunds) * 100
+  const usedPercentage = Math.min(100, Math.max(0, usedPercentageRaw))
   const hasFlaggedDistricts = state.districts.some(d => d.flagged)
 
   return (
@@ -58,7 +59,7 @@ export function StateCard({ state, onClick }: StateCardProps) {
         <div className="space-y-1">
           <div className="flex justify-between text-xs">
             <span className="text-muted-foreground">Utilization</span>
-            <span className="text-foreground">{usedPercentage.toFixed(1)}%</span>
+            <span className="text-foreground">{usedPercentage.toFixed(1)}%{usedPercentageRaw > 100 ? " (overspend)" : ""}</span>
           </div>
           <Progress value={usedPercentage} className="h-2" />
         </div>

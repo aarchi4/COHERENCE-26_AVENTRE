@@ -1,8 +1,10 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useMemo, useState, useRef } from "react"
 import { State, District } from "@/lib/types"
 import { formatCurrency } from "@/lib/data"
+import { BarChart, DonutChart } from "@/components/charts"
+import type { BarChartDatum, DonutDatum } from "@/components/charts"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -50,8 +52,25 @@ export function UserDashboard({ states, onFileComplaint }: UserDashboardProps) {
   const totalAllocated = states.reduce((sum, s) => sum + s.allocatedFunds, 0)
   const totalUsed = states.reduce((sum, s) => sum + s.usedFunds, 0)
   const totalDistricts = states.reduce((sum, s) => sum + s.districts.length, 0)
-  const totalProjects = states.reduce((sum, s) => 
+  const totalProjects = states.reduce((sum, s) =>
     sum + s.districts.reduce((dSum, d) => dSum + d.projects.length, 0), 0
+  )
+
+  const stateBarData = useMemo<BarChartDatum[]>(
+    () =>
+      states.map((s) => ({
+        name: s.name.length > 10 ? s.name.slice(0, 10) + "…" : s.name,
+        value: s.allocatedFunds,
+        value2: s.usedFunds,
+      })),
+    [states],
+  )
+  const overviewDonutData = useMemo<DonutDatum[]>(
+    () => [
+      { name: "Total Allocated", value: totalAllocated, fill: "#b45309" },
+      { name: "Total Utilized", value: totalUsed, fill: "#0d9488" },
+    ],
+    [totalAllocated, totalUsed],
   )
 
   const filteredStates = states.filter(state =>
@@ -128,6 +147,36 @@ export function UserDashboard({ states, onFileComplaint }: UserDashboardProps) {
             <p className="text-sm text-muted-foreground">Track government funds and report issues</p>
           </div>
         </div>
+      </div>
+
+      {/* Interactive Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">State-wise Allocation vs Utilized</CardTitle>
+            <CardDescription>Compare allocated and utilized funds across states</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <BarChart
+              data={stateBarData}
+              valueLabel="Allocated"
+              value2Label="Utilized"
+              formatValue={(n) => formatCurrency(n)}
+            />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Total Allocated vs Utilized</CardTitle>
+            <CardDescription>National fund overview</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DonutChart
+              data={overviewDonutData}
+              formatValue={(n) => formatCurrency(n)}
+            />
+          </CardContent>
+        </Card>
       </div>
 
       {/* Flow Diagram */}
@@ -253,7 +302,8 @@ export function UserDashboard({ states, onFileComplaint }: UserDashboardProps) {
                   <AccordionContent>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-4">
                       {state.districts.map(district => {
-                        const districtUsedPercent = (district.usedFunds / district.allocatedFunds) * 100
+                        const districtUsedPercentRaw = (district.usedFunds / district.allocatedFunds) * 100
+                        const districtUsedPercent = Math.min(100, Math.max(0, districtUsedPercentRaw))
                         return (
                           <div 
                             key={district.id}
@@ -285,6 +335,9 @@ export function UserDashboard({ states, onFileComplaint }: UserDashboardProps) {
                                 <span className="font-medium text-foreground">{district.projects.length}</span>
                               </div>
                               <Progress value={districtUsedPercent} className="h-2 mt-2" />
+                              {districtUsedPercentRaw > 100 && (
+                                <span className="text-xs text-destructive mt-1">Overspend</span>
+                              )}
                             </div>
                           </div>
                         )

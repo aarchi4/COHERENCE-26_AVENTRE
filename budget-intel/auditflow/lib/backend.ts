@@ -20,6 +20,29 @@ const API_PATH =
 export const API_DISPLAY =
   API_PATH === "/api-proxy" ? "proxied to http://localhost:8000" : API_BASE
 
+/** User returned by /api/login (no password). role is government | state | district | user */
+export interface AuthUser {
+  email: string
+  name: string
+  role: "government" | "state" | "district" | "user"
+  state?: string
+  district?: string
+}
+
+export async function loginWithBackend(email: string, password: string): Promise<AuthUser> {
+  const url = API_PATH === "/api-proxy" ? `${API_PATH}/login` : `${API_BASE}/api/login`
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: email.trim(), password }),
+  })
+  const data = await res.json()
+  if (!res.ok || (data as { error?: string }).error) {
+    throw new Error((data as { error?: string }).error ?? "Login failed")
+  }
+  return data as AuthUser
+}
+
 type BackendProject = {
   project_id: string
   name: string
@@ -154,6 +177,8 @@ interface FileComplaintParams {
   projectId: string
   description: string
   images: string[]
+  userEmail?: string
+  userName?: string
 }
 
 export async function fileComplaintToBackend({
@@ -162,6 +187,8 @@ export async function fileComplaintToBackend({
   projectId,
   description,
   images,
+  userEmail = "citizen@example.com",
+  userName = "Citizen User",
 }: FileComplaintParams): Promise<void> {
   // Find state, district, project for metadata
   let foundState: State | undefined
@@ -199,8 +226,8 @@ export async function fileComplaintToBackend({
     district: foundDistrict.name,
     state: foundState.name,
     description: fullDescription,
-    user_email: "citizen@example.com",
-    user_name: "Citizen User",
+    user_email: userEmail,
+    user_name: userName,
   }
 
   const url = API_PATH === "/api-proxy" ? `${API_PATH}/complaints` : `${API_BASE}/api/complaints`

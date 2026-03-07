@@ -1,10 +1,12 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useMemo, useState, useRef } from "react"
 import { State } from "@/lib/types"
 import { formatCurrency } from "@/lib/data"
 import { FlowDiagram } from "./flow-diagram"
 import { StateCard } from "./state-card"
+import { BarChart, DonutChart } from "@/components/charts"
+import type { BarChartDatum, DonutDatum } from "@/components/charts"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -57,6 +59,23 @@ export function CentralDashboard({ states, onStateClick, onAllocateFunds }: Cent
   const totalAllocated = states.reduce((sum, s) => sum + s.allocatedFunds, 0)
   const totalUsed = states.reduce((sum, s) => sum + s.usedFunds, 0)
   const totalDistricts = states.reduce((sum, s) => sum + s.districts.length, 0)
+
+  const stateBarData = useMemo<BarChartDatum[]>(
+    () =>
+      states.map((s) => ({
+        name: s.name.length > 10 ? s.name.slice(0, 10) + "…" : s.name,
+        value: s.allocatedFunds,
+        value2: s.usedFunds,
+      })),
+    [states],
+  )
+  const allocationDonutData = useMemo<DonutDatum[]>(
+    () => [
+      { name: "Allocated", value: totalAllocated, fill: "#b45309" },
+      { name: "Utilized", value: totalUsed, fill: "#0d9488" },
+    ],
+    [totalAllocated, totalUsed],
+  )
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -149,6 +168,34 @@ export function CentralDashboard({ states, onStateClick, onAllocateFunds }: Cent
                 <p className="text-lg font-bold text-foreground">{totalDistricts}</p>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Interactive Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">State-wise Allocation vs Utilized</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <BarChart
+              data={stateBarData}
+              valueLabel="Allocated"
+              value2Label="Utilized"
+              formatValue={(n) => formatCurrency(n)}
+            />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Allocated vs Utilized (Total)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DonutChart
+              data={allocationDonutData}
+              formatValue={(n) => formatCurrency(n)}
+            />
           </CardContent>
         </Card>
       </div>

@@ -1,9 +1,11 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { useMemo, useEffect, useState } from "react"
 import type { State } from "@/lib/types"
 import { fetchStatesFromBackend, API_BASE } from "@/lib/backend"
-import { MapView } from "./map-view"
+
+const MapView = dynamic(() => import("./map-view").then((m) => m.MapView), { ssr: false })
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"

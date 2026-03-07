@@ -22,7 +22,8 @@ function getStatusIcon(status: Project['status']) {
 }
 
 export function ProjectCard({ project }: ProjectCardProps) {
-  const usedPercentage = (project.usedFunds / project.allocatedFunds) * 100
+  const usedPercentageRaw = (project.usedFunds / project.allocatedFunds) * 100
+  const usedPercentage = Math.min(100, Math.max(0, usedPercentageRaw))
 
   return (
     <Card className={`transition-all hover:border-primary/50 ${
@@ -81,8 +82,8 @@ export function ProjectCard({ project }: ProjectCardProps) {
         </div>
         <div className="flex justify-between text-xs pt-1">
           <span className="text-muted-foreground">Budget Usage</span>
-          <span className={`font-medium ${usedPercentage > 80 ? 'text-warning' : 'text-foreground'}`}>
-            {usedPercentage.toFixed(1)}%
+          <span className={`font-medium ${usedPercentageRaw > 80 ? 'text-warning' : 'text-foreground'}`}>
+            {usedPercentage.toFixed(1)}%{usedPercentageRaw > 100 ? " (overspend)" : ""}
           </span>
         </div>
       </CardContent>

@@ -1,9 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { State, District } from "@/lib/types"
 import { formatCurrency } from "@/lib/data"
 import { DistrictCard } from "./district-card"
+import { BarChart, DonutChart } from "@/components/charts"
+import type { BarChartDatum, DonutDatum } from "@/components/charts"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,6 +23,7 @@ interface StateDashboardProps {
   onStateSelect: (state: State) => void
   onDistrictClick: (district: District) => void
   onAlertDistrict: (districtId: string, message: string) => void
+  onUnflagDistrict: (districtId: string) => void
   onReallocateFunds: (districtId: string, amount: number) => void
 }
 
@@ -30,6 +33,7 @@ export function StateDashboard({
   onStateSelect,
   onDistrictClick, 
   onAlertDistrict,
+  onUnflagDistrict,
   onReallocateFunds 
 }: StateDashboardProps) {
   const [searchQuery, setSearchQuery] = useState("")
@@ -41,7 +45,28 @@ export function StateDashboard({
 
   const totalProjects = selectedState?.districts.reduce((sum, d) => sum + d.projects.length, 0) || 0
   const flaggedDistricts = selectedState?.districts.filter(d => d.flagged).length || 0
-  const usedPercentage = selectedState ? (selectedState.usedFunds / selectedState.allocatedFunds) * 100 : 0
+  const usedPercentageRaw = selectedState ? (selectedState.usedFunds / selectedState.allocatedFunds) * 100 : 0
+  const usedPercentage = Math.min(100, Math.max(0, usedPercentageRaw))
+
+  const districtBarData = useMemo<BarChartDatum[]>(
+    () =>
+      selectedState?.districts.map((d) => ({
+        name: d.name.length > 8 ? d.name.slice(0, 8) + "…" : d.name,
+        value: d.allocatedFunds,
+        value2: d.usedFunds,
+      })) ?? [],
+    [selectedState],
+  )
+  const stateDonutData = useMemo<DonutDatum[]>(
+    () =>
+      selectedState
+        ? [
+            { name: "Allocated", value: selectedState.allocatedFunds, fill: "#b45309" },
+            { name: "Utilized", value: selectedState.usedFunds, fill: "#0d9488" },
+          ]
+        : [],
+    [selectedState],
+  )
 
   const filteredDistricts = selectedState?.districts.filter(district =>
     district.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -186,6 +211,31 @@ export function StateDashboard({
             </Card>
           </div>
 
+          {/* Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">District-wise Allocation vs Utilized</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <BarChart
+                  data={districtBarData}
+                  valueLabel="Allocated"
+                  value2Label="Utilized"
+                  formatValue={(n) => formatCurrency(n)}
+                />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">Allocated vs Utilized - {selectedState.name}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DonutChart data={stateDonutData} formatValue={(n) => formatCurrency(n)} />
+              </CardContent>
+            </Card>
+          </div>
+
           {/* Utilization Bar */}
           <Card>
             <CardHeader className="pb-2">
@@ -195,7 +245,9 @@ export function StateDashboard({
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Overall Progress</span>
-                  <span className="font-medium text-foreground">{usedPercentage.toFixed(1)}%</span>
+                  <span className="font-medium text-foreground">
+                    {usedPercentage.toFixed(1)}%{usedPercentageRaw > 100 ? " (overspend)" : ""}
+                  </span>
                 </div>
                 <Progress value={usedPercentage} className="h-3" />
               </div>
@@ -228,6 +280,7 @@ export function StateDashboard({
                     setSelectedDistrict(district)
                     setAlertDialogOpen(true)
                   }}
+                  onUnflag={() => onUnflagDistrict(district.id)}
                   onReallocate={() => {
                     setSelectedDistrict(district)
                     setReallocateDialogOpen(true)

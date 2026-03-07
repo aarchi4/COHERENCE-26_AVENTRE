@@ -1,9 +1,11 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useMemo, useState, useRef } from "react"
 import { State, District, Complaint } from "@/lib/types"
 import { formatCurrency } from "@/lib/data"
 import { ProjectCard } from "./project-card"
+import { BarChart, DonutChart } from "@/components/charts"
+import type { BarChartDatum, DonutDatum } from "@/components/charts"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -30,7 +32,8 @@ import {
   Landmark,
   Building2,
   RefreshCw,
-  Image as ImageIcon
+  Image as ImageIcon,
+  FlagOff,
 } from "lucide-react"
 
 interface DistrictDashboardProps {
@@ -40,6 +43,7 @@ interface DistrictDashboardProps {
   onStateSelect: (state: State) => void
   onDistrictSelect: (district: District) => void
   onFileComplaint: (districtId: string, projectId: string, description: string, images: string[]) => void
+  onUnflagDistrict?: (districtId: string) => void
 }
 
 export function DistrictDashboard({ 
@@ -48,7 +52,8 @@ export function DistrictDashboard({
   selectedDistrict, 
   onStateSelect,
   onDistrictSelect,
-  onFileComplaint 
+  onFileComplaint,
+  onUnflagDistrict,
 }: DistrictDashboardProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [complaintDialogOpen, setComplaintDialogOpen] = useState(false)
@@ -57,10 +62,47 @@ export function DistrictDashboard({
   const [selectedProjectId, setSelectedProjectId] = useState<string>("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const usedPercentage = selectedDistrict ? (selectedDistrict.usedFunds / selectedDistrict.allocatedFunds) * 100 : 0
+  const usedPercentageRaw = selectedDistrict ? (selectedDistrict.usedFunds / selectedDistrict.allocatedFunds) * 100 : 0
+  const usedPercentage = Math.min(100, Math.max(0, usedPercentageRaw))
   const completedProjects = selectedDistrict?.projects.filter(p => p.status === 'completed').length || 0
   const inProgressProjects = selectedDistrict?.projects.filter(p => p.status === 'in-progress').length || 0
   const flaggedProjects = selectedDistrict?.projects.filter(p => p.status === 'flagged').length || 0
+
+  const projectStatusDonutData = useMemo<DonutDatum[]>(
+    () =>
+      selectedDistrict
+        ? [
+            { name: "Completed", value: completedProjects, fill: "#16a34a" },
+            { name: "In Progress", value: inProgressProjects, fill: "#b45309" },
+            { name: "Flagged", value: flaggedProjects, fill: "#dc2626" },
+            {
+              name: "Planning",
+              value: selectedDistrict.projects.filter((p) => p.status === "planning").length,
+              fill: "#ea580c",
+            },
+          ].filter((d) => d.value > 0)
+        : [],
+    [selectedDistrict, completedProjects, inProgressProjects, flaggedProjects],
+  )
+  const districtAllocationDonutData = useMemo<DonutDatum[]>(
+    () =>
+      selectedDistrict
+        ? [
+            { name: "Allocated", value: selectedDistrict.allocatedFunds, fill: "#b45309" },
+            { name: "Utilized", value: selectedDistrict.usedFunds, fill: "#0d9488" },
+          ]
+        : [],
+    [selectedDistrict],
+  )
+  const projectBarData = useMemo<BarChartDatum[]>(
+    () =>
+      selectedDistrict?.projects.map((p) => ({
+        name: p.name.length > 12 ? p.name.slice(0, 12) + "…" : p.name,
+        value: p.allocatedFunds,
+        value2: p.usedFunds,
+      })) ?? [],
+    [selectedDistrict],
+  )
 
   const filteredProjects = selectedDistrict?.projects.filter(project =>
     project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -219,13 +261,24 @@ export function DistrictDashboard({
               <h2 className="text-xl font-bold text-foreground">{selectedDistrict.name}</h2>
               <p className="text-sm text-muted-foreground">{selectedState.name}</p>
             </div>
-            <Dialog open={complaintDialogOpen} onOpenChange={setComplaintDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="destructive" className="gap-2">
-                  <FileWarning className="h-4 w-4" />
-                  Flag
+            <div className="flex gap-2">
+              {selectedDistrict.flagged && onUnflagDistrict && (
+                <Button
+                  variant="outline"
+                  className="gap-2 border-green-600 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30"
+                  onClick={() => onUnflagDistrict(selectedDistrict.id)}
+                >
+                  <FlagOff className="h-4 w-4" />
+                  Unflag District
                 </Button>
-              </DialogTrigger>
+              )}
+              <Dialog open={complaintDialogOpen} onOpenChange={setComplaintDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="destructive" className="gap-2">
+                    <FileWarning className="h-4 w-4" />
+                    Flag
+                  </Button>
+                </DialogTrigger>
               <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
@@ -335,6 +388,47 @@ export function DistrictDashboard({
             </Card>
           </div>
 
+          {/* Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">Project Status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DonutChart
+                  data={projectStatusDonutData}
+                  formatValue={(n) => n.toString()}
+                />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">Allocated vs Utilized - {selectedDistrict.name}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DonutChart
+                  data={districtAllocationDonutData}
+                  formatValue={(n) => formatCurrency(n)}
+                />
+              </CardContent>
+            </Card>
+          </div>
+          {projectBarData.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">Project-wise Allocation vs Utilized</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <BarChart
+                  data={projectBarData}
+                  valueLabel="Allocated"
+                  value2Label="Utilized"
+                  formatValue={(n) => formatCurrency(n)}
+                />
+              </CardContent>
+            </Card>
+          )}
+
           {/* Money Trail */}
           <Card>
             <CardHeader>
@@ -406,7 +500,9 @@ export function DistrictDashboard({
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Budget Used</span>
-                    <span className="font-medium text-foreground">{usedPercentage.toFixed(1)}%</span>
+                    <span className="font-medium text-foreground">
+                      {usedPercentage.toFixed(1)}%{usedPercentageRaw > 100 ? " (overspend)" : ""}
+                    </span>
                   </div>
                   <Progress 
                     value={usedPercentage} 
